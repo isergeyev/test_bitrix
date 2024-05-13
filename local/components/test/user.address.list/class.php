@@ -1,6 +1,7 @@
 <?php
 
 use Bitrix\Main\{
+    Application,
     Loader,
     SystemException,
     Data\Cache,
@@ -58,12 +59,18 @@ class UserAddressesComponent extends CBitrixComponent
     protected function getResult(): void
     {
         $cache = Cache::createInstance();
+        $taggedCache = Application::getInstance()->getTaggedCache();
         $cacheKey = 'addresses_list_' . $this->userId . ($this->arParams['ACTIVE'] == 'Y' ? '_active' : '');
-        if ($cache->initCache($this->arParams['CACHE_TIME'], $cacheKey, '/addresses')) {
+        $cachePath = '/addresses';
+        if ($cache->initCache($this->arParams['CACHE_TIME'], $cacheKey, $cachePath)) {
             $this->arResult = $cache->getVars();
         } elseif ($cache->startDataCache()) {
+            $hlblockId = $this->arParams['HL_BLOCK_ID'];
+            $taggedCache->startTagCache($cachePath);
+            $taggedCache->registerTag("highloadblock_id_{$hlblockId}");
+
             $addresses = [];
-            $hlblock = HighloadBlockTable::getById($this->arParams['HL_BLOCK_ID'])->fetch();
+            $hlblock = HighloadBlockTable::getById($hlblockId)->fetch();
             $entity = HighloadBlockTable::compileEntity($hlblock);
             $entityClass = $entity->getDataClass();
             $filter = ['UF_USER_ID' => $this->userId];
@@ -85,6 +92,7 @@ class UserAddressesComponent extends CBitrixComponent
             }
 
             $this->arResult['ADDRESSES'] = $addresses;
+            $taggedCache->endTagCache();
             $cache->endDataCache($this->arResult);
         }
     }
